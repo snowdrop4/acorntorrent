@@ -1,0 +1,8 @@
+# MacOS
+.DS_Store
+
+# Rust
+/target
+
+# Custom
+/test_torrents/

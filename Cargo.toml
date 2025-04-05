@@ -1,0 +1,24 @@
+[package]
+name = "acorntorrent"
+version = "0.1.0"
+authors = ["snowdrop4"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+# Crypto
+rand = "0.8"
+ring = "0.16"
+
+# Bencoding
+bendy = "0.3"
+failure = "0.1" # to interface with bendy
+
+# Network
+reqwest = "0.11"
+percent-encoding = "2.1"
+
+# Async
+tokio = "1.44.2"
