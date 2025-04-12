@@ -13,8 +13,9 @@ rand = "0.8"
 ring = "0.16"
 
 # Bencoding
-bendy = "0.3"
-failure = "0.1" # to interface with bendy
+failure = "0.1" # for error handling
+acornbencode = { path = "acornbencode" }
+nom = "7.1"
 
 # Network
 reqwest = "0.11"
@@ -22,3 +23,6 @@ percent-encoding = "2.1"
 
 # Async
 tokio = "1.44.2"
+chrono = "0.4.40"
+num-bigint = "0.4.6"
+num-traits = "0.2.19"

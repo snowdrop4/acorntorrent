@@ -1,0 +1,3 @@
+[submodule "acornbencode"]
+	path = acornbencode
+	url = git@github.com:snowdrop4/acornbencode.git

@@ -1,15 +1,15 @@
 use std::convert::TryFrom;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::collections::BTreeMap;
+use std::str;
 
 use reqwest::Client;
-use bendy::{
-    decoding::{FromBencode, Decoder, Object, Error as DecodingError, ResultExt},
-    encoding::AsString,
-};
-use failure::err_msg;
+use acornbencode::parser::parse_bencode;
+use acornbencode::common::BencodeValue;
 
 use crate::torrent::BTorrent;
 use crate::config::NetworkSettings;
+use crate::util::get_utf8_value;
 
 
 #[derive(PartialEq)]
@@ -68,117 +68,93 @@ pub async fn announce(
 #[allow(dead_code)]
 pub struct BTrackerResponse {
     peers: Vec<BPeer>,
-    interval: u64, // suggested minimum announce interval, in seconds
-    complete: Option<u64>,
-    incomplete: Option<u64>,
+    interval: isize, // suggested minimum announce interval, in seconds
+    complete: Option<isize>, // number of complete peers
+    incomplete: Option<isize>, // number of incomplete peers
 }
 
 impl BTrackerResponse {
     pub fn from_bytes(bytes: &[u8]) -> Result<BTrackerResponse, String> {
-        let mut decoder = Decoder::new(&bytes);
+        let (remaining, value) = match parse_bencode(bytes) {
+            Ok((rem, val)) => (rem, val),
+            Err(e) => return Err(format!("Failed to parse bencode: {:?}", e)),
+        };
 
-        // Read in and then parse the tracker response dictionary
-        let tracker_response = decoder.next_object()
-            .map_err(|x| x.to_string())?
-            .ok_or_else(|| String::from("Tracker sent empty response."))?;
-        let tracker_response = BTrackerResponse::decode_bencode_object(tracker_response)
-            .map_err(|x| x.to_string());
-
-        // Ensure we've hit EOF
-        if decoder.next_object().map_err(|x| x.to_string())?.is_some() {
-            return Err(String::from("Erroneous data at the end of the tracker response."))
+        // Ensure we've hit EOF (no remaining data)
+        if !remaining.is_empty() {
+            return Err("Erroneous data at the end of the tracker response".to_string());
         }
 
-        tracker_response
+        // Extract tracker response from the parsed bencode value
+        BTrackerResponse::from_bencode_value(&value)
     }
 
     // pub async fn from_response(response: reqwest::Response) -> Result<BTrackerResponse, String> {
     // 	let bytes = response.bytes().await.map_err(|e| e.to_string())?;
     // 	BTrackerResponse::from_bytes(&bytes)
     // }
-}
 
-impl FromBencode for BTrackerResponse {
-    fn decode_bencode_object(object: Object) -> Result<Self, DecodingError> {
-        let mut peers      = None;
-        let mut peers6     = None;
-        let mut interval   = None;
-        let mut complete   = None;
-        let mut incomplete = None;
+    fn from_bencode_value(value: &BencodeValue) -> Result<BTrackerResponse, String> {
+        match value {
+            BencodeValue::Dictionary(dict) => {
+                let interval = match dict.get(b"interval".as_ref()) {
+                    Some(BencodeValue::Integer(val)) => *val,
+                    None => return Err("missing field 'interval'".to_string()),
+                    _ => return Err("field 'interval' must be an integer".to_string()),
+                };
 
-        let mut dict = object.try_into_dictionary()?;
-        while let Some(keyval) = dict.next_pair()? {
-            match keyval {
-                (b"peers", val) => {
-                    match val {
-                        Object::List(_) => {
-                            peers = Vec::decode_bencode_object(val)
-                                .context("peers")
-                                .map(Some)?;
+                let complete = match dict.get(b"complete".as_ref()) {
+                    Some(BencodeValue::Integer(val)) => Some(*val),
+                    None => None,
+                    _ => return Err("field 'complete' must be an integer".to_string()),
+                };
+
+                let incomplete = match dict.get(b"incomplete".as_ref()) {
+                    Some(BencodeValue::Integer(val)) => Some(*val),
+                    None => None,
+                    _ => return Err("field 'incomplete' must be an integer".to_string()),
+                };
+
+                let peers = match dict.get(b"peers".as_ref()) {
+                    // Parse dictionary format peers
+                    Some(BencodeValue::List(list)) => {
+                        let mut peers_vec = Vec::new();
+                        for peer in list {
+                            match peer {
+                                BencodeValue::Dictionary(peer_dict) => {
+                                    let peer = BPeer::from_bencode_dict(peer_dict)?;
+                                    peers_vec.push(peer);
+                                }
+                                _ => return Err("field 'peers' must be a list of dictionaries".to_string()),
+                            }
                         }
-                        Object::Bytes(_) => {
-                            // `AsString` is a wrapper allowing us to decode/encode a Vec<u8>.
-                            // It contains only one field -- the Vec<u8>. Unwrap it.
-                            let peers_bytestring = AsString::decode_bencode_object(val)
-                                .context("peers")
-                                .map(|b| b.0)?;
+                        peers_vec
+                    },
+                    // Parse compact format peers
+                    Some(BencodeValue::ByteString(bytes)) => {
+                        parse_compact_ipv4_peer_list(*bytes)?
+                    },
+                    // Otherwise, throw an error
+                    None => return Err("missing field 'peers'".to_string()),
+                    _ => return Err("field 'peers' must be a list or byte string".to_string()),
+                };
 
-                            peers = parse_compact_ipv4_peer_list(&peers_bytestring)
-                                .map(Some)?;
-                        }
-                        _ => {
-                            return Err(DecodingError::malformed_content(
-                                err_msg("peers key must be either a dictionary or a list")
-                            ));
-                        }
-                    }
+                // Handle optional IPv6 peers
+                let mut all_peers = peers;
+                if let Some(BencodeValue::ByteString(bytes)) = dict.get(b"peers6".as_ref()) {
+                    let mut ipv6_peers = parse_compact_ipv6_peer_list(bytes)?;
+                    all_peers.append(&mut ipv6_peers);
                 }
-                (b"peers6", val) => {
-                    // `AsString` is a wrapper allowing us to decode/encode a Vec<u8>.
-                    // It contains only one field -- the Vec<u8>. Unwrap it.
-                    let peers_bytestring = AsString::decode_bencode_object(val)
-                        .context("peers6")
-                        .map(|b| b.0)?;
 
-                    peers6 = parse_compact_ipv6_peer_list(&peers_bytestring)
-                        .map(Some)?;
-                }
-                (b"interval", val) => {
-                    interval = u64::decode_bencode_object(val)
-                        .context("interval")
-                        .map(Some)?;
-                }
-                (b"complete", val) => {
-                    complete = u64::decode_bencode_object(val)
-                        .context("complete")
-                        .map(Some)?;
-                }
-                (b"incomplete", val) => {
-                    incomplete = u64::decode_bencode_object(val)
-                        .context("incomplete")
-                        .map(Some)?;
-                }
-                (key, _) => {
-                    return Err(DecodingError::unexpected_field(String::from_utf8_lossy(key)));
-                }
+                Ok(BTrackerResponse {
+                    peers: all_peers,
+                    interval,
+                    complete,
+                    incomplete,
+                })
             }
+            _ => Err("Tracker response must be a dictionary".to_string()),
         }
-
-        let mut peers    =    peers.ok_or_else(|| DecodingError::missing_field("peers"   ))?;
-        let     interval = interval.ok_or_else(|| DecodingError::missing_field("interval"))?;
-
-        // Merge the Ipv6 peer list with the Ipv4 peer list.
-        // For our purposes, they can be both in the same vector for simplicity.
-        if let Some(mut peers6) = peers6 {
-            peers.append(&mut peers6);
-        }
-
-        Ok(BTrackerResponse {
-            peers,
-            interval,
-            complete,
-            incomplete,
-        })
     }
 }
 
@@ -189,46 +165,25 @@ struct BPeer {
     port: u16,
 }
 
-impl FromBencode for BPeer {
-    fn decode_bencode_object(object: Object) -> Result<Self, DecodingError> {
-        let mut ip      = None;
-        let mut peer_id = None;
-        let mut port    = None;
+impl BPeer {
+    fn from_bencode_dict(dict: &BTreeMap<&[u8], BencodeValue>) -> Result<Self, String> {
+        let ip_string = match dict.get(b"ip".as_ref()) {
+            Some(BencodeValue::ByteString(s)) => s,
+            None => return Err("missing field 'ip'".to_string()),
+            _ => return Err("field 'ip' must be a string".to_string()),
+        };
 
-        let mut dict = object.try_into_dictionary()?;
-        while let Some(keyval) = dict.next_pair()? {
-            match keyval {
-                (b"ip", val) => {
-                    let ip_string = String::decode_bencode_object(val)
-                        .context("ip")?;
+        // Parse IP address
+        let ip: IpAddr = str::from_utf8(ip_string).expect("Invalid UTF-8").parse()
+            .map_err(|_| "Invalid IP address".to_string())?;
 
-                    // Bloated peer list ip could either be Ipv4 or Ipv6
-                    let ip_obj: IpAddr = ip_string.parse()
-                        .map_err(|_| DecodingError::malformed_content(
-                            err_msg("invalid ip address")
-                        ))?;
+        let peer_id = get_utf8_value(dict, b"peer id")?;
 
-                    ip = Some(ip_obj);
-                }
-                (b"peer id", val) => {
-                    peer_id = String::decode_bencode_object(val)
-                        .context("peer id")
-                        .map(Some)?;
-                }
-                (b"port", val) => {
-                    port = u16::decode_bencode_object(val)
-                        .context("port")
-                        .map(Some)?;
-                }
-                (key, _) => {
-                    return Err(DecodingError::unexpected_field(String::from_utf8_lossy(key)));
-                }
-            }
-        }
-
-        let ip      =      ip.ok_or_else(|| DecodingError::missing_field("ip"     ))?;
-        let peer_id = peer_id.ok_or_else(|| DecodingError::missing_field("peer_id"))?;
-        let port    =    port.ok_or_else(|| DecodingError::missing_field("port"   ))?;
+        let port = match dict.get(b"port".as_ref()) {
+            Some(BencodeValue::Integer(val)) => *val as u16,
+            None => return Err("missing field 'port'".to_string()),
+            _ => return Err("field 'port' must be an integer".to_string()),
+        };
 
         Ok(BPeer {
             ip,
@@ -239,13 +194,11 @@ impl FromBencode for BPeer {
 }
 
 
-fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, DecodingError> {
+fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
     let mut peers = Vec::new();
 
     if bytes.len() % 6 != 0 {
-        return Err(DecodingError::malformed_content(
-            err_msg("incomplete compact ipv4 peers list (length is not divisible by 6)")
-        ));
+        return Err("Incomplete compact IPv4 peers list (length is not divisible by 6)".to_string());
     }
 
     for i in bytes.chunks(6) {
@@ -266,13 +219,11 @@ fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, DecodingErro
     Ok(peers)
 }
 
-fn parse_compact_ipv6_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, DecodingError> {
+fn parse_compact_ipv6_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
     let mut peers = Vec::new();
 
     if bytes.len() % 18 != 0 {
-        return Err(DecodingError::malformed_content(
-            err_msg("incomplete compact ipv4 peers list (length is not divisible by 18)")
-        ));
+        return Err("Incomplete compact IPv6 peers list (length is not divisible by 18)".to_string());
     }
 
     for i in bytes.chunks(18) {
