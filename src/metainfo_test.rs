@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::PathBuf;
+    use rstest::rstest;
 
     use crate::formatting::{format_datetime_to_localtime, parse_size_to_bytes, fuzzy_format_bytes_to_si};
     use crate::metainfo::BMetainfo;
@@ -101,57 +102,52 @@ mod tests {
         parse_transmission_show_info(&stdout)
     }
 
-    #[test]
-    fn test_torrent_corpus_transmission_show_info() {
-        let path = Path::new("test_torrents/");
+    #[rstest]
+    fn test_torrent_corpus_transmission_show_info(
+        #[files("test_torrents/*.torrent")]
+        torrent_file: PathBuf
+    ) {
+        let path_str = torrent_file.to_str().unwrap();
 
-        for entry in path.read_dir().expect("read_dir call failed") {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                let path_osstr = path.into_os_string();
-                let path_str = path_osstr.to_str().unwrap();
+        let expected = parse_transmission_show_from_command(&path_str);
+        let actual = BMetainfo::from_path(&torrent_file).unwrap();
 
-                let expected = parse_transmission_show_from_command(&path_str);
-                let actual = BMetainfo::from_path(&entry.path()).unwrap();
+        println!("----------");
+        println!("Path: {}", &path_str);
+        println!("----------");
 
-                println!("----------");
-                println!("Path: {}", &path_str);
-                println!("----------");
+        // assert_eq!(actual.info.compute_hash(), expected.hash_v1);
 
-                // assert_eq!(actual.info.compute_hash(), expected.hash_v1);
+        println!("Created By:     {:?}, {:?}", actual.created_by, expected.created_by);
+        assert_eq!(actual.created_by, expected.created_by);
 
-                println!("Created By:     {:?}, {:?}", actual.created_by, expected.created_by);
-                assert_eq!(actual.created_by, expected.created_by);
+        println!("Created On:     {:?}, {:?}", actual.created_on, expected.created_on);
+        if actual.created_on.is_some() || expected.created_on.is_some() {
+            assert_eq!(actual.created_on.is_some(), expected.created_on.is_some());
+            assert_eq!(format_datetime_to_localtime(actual.created_on.unwrap() as i64), expected.created_on.unwrap());
+        }
 
-                println!("Created On:     {:?}, {:?}", actual.created_on, expected.created_on);
-                if actual.created_on.is_some() || expected.created_on.is_some() {
-                    assert_eq!(actual.created_on.is_some(), expected.created_on.is_some());
-                    assert_eq!(format_datetime_to_localtime(actual.created_on.unwrap() as i64), expected.created_on.unwrap());
-                }
+        println!("Comment:        {:?}, {:?}", actual.comment, expected.comment);
+        assert_eq!(actual.comment, expected.comment);
 
-                println!("Comment:        {:?}, {:?}", actual.comment, expected.comment);
-                assert_eq!(actual.comment, expected.comment);
+        println!("Piece Count:    {:?}, {:?}", actual.info.total_piece_count(), expected.piece_count);
+        assert_eq!(actual.info.total_piece_count().to_string(), expected.piece_count.unwrap());
 
-                println!("Piece Count:    {:?}, {:?}", actual.info.total_piece_count(), expected.piece_count);
-                assert_eq!(actual.info.total_piece_count().to_string(), expected.piece_count.unwrap());
+        let expected_piece_size_bytes = parse_size_to_bytes(&expected.piece_size.unwrap()).unwrap();
+        println!("Piece Size:     {:?}, {:?}", actual.info.piece_size as u64, expected_piece_size_bytes);
+        assert_eq!(actual.info.piece_size as u64, expected_piece_size_bytes);
 
-                let expected_piece_size_bytes = parse_size_to_bytes(&expected.piece_size.unwrap()).unwrap();
-                println!("Piece Size:     {:?}, {:?}", actual.info.piece_size as u64, expected_piece_size_bytes);
-                assert_eq!(actual.info.piece_size as u64, expected_piece_size_bytes);
+        let expected_total_size_str = expected.total_size.as_ref().unwrap();
+        let actual_total_size_bytes = actual.info.metainfo_total_size_bytes() as u64;
+        let actual_total_size_formatted = fuzzy_format_bytes_to_si(actual_total_size_bytes);
+        println!("Total Size:     {} bytes -> {:?}, {:?}", actual_total_size_bytes, actual_total_size_formatted, expected_total_size_str);
+        assert_eq!(actual_total_size_formatted, *expected_total_size_str);
 
-                let expected_total_size_str = expected.total_size.as_ref().unwrap();
-                let actual_total_size_bytes = actual.info.metainfo_total_size_bytes() as u64;
-                let actual_total_size_formatted = fuzzy_format_bytes_to_si(actual_total_size_bytes);
-                println!("Total Size:     {} bytes -> {:?}, {:?}", actual_total_size_bytes, actual_total_size_formatted, expected_total_size_str);
-                assert_eq!(actual_total_size_formatted, *expected_total_size_str);
-
-                println!("Private:        {:?}, {:?}", actual.info.private, expected.privacy);
-                if actual.info.private.is_some() || expected.privacy.is_some() {
-                    let actual_is_private = actual.info.private.unwrap_or(false);
-                    let expected_is_private = expected.privacy.unwrap() != "Public torrent";
-                    assert_eq!(actual_is_private, expected_is_private);
-                }
-            }
+        println!("Private:        {:?}, {:?}", actual.info.private, expected.privacy);
+        if actual.info.private.is_some() || expected.privacy.is_some() {
+            let actual_is_private = actual.info.private.unwrap_or(false);
+            let expected_is_private = expected.privacy.unwrap() != "Public torrent";
+            assert_eq!(actual_is_private, expected_is_private);
         }
     }
 }

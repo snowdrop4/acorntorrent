@@ -1,12 +1,18 @@
 #![allow(dead_code)]
 
 pub mod config;
-pub mod metainfo;
-pub mod torrent;
-pub mod tracker;
-mod util;
-mod metainfo_test;
+
 mod formatting;
+
+mod metainfo_test;
+pub mod metainfo;
+
+pub mod torrent;
+
+pub mod tracker;
+mod tracker_test;
+
+mod util;
 
 #[cfg(test)]
 mod tests {
