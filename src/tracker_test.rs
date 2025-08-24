@@ -34,6 +34,8 @@ mod tests {
         #[files("test_torrents/*.torrent")]
         torrent_file: PathBuf
     ) -> Result<(), String> {
+        use crate::tracker::BTrackerResponse;
+
         let mock_server = setup_mock_tracker().await;
         let local_tracker_url = format!("{}/announce", mock_server.uri());
 
@@ -48,10 +50,15 @@ mod tests {
         mi.announce = local_tracker_url;
 
         let bt = torrent::BTorrent::new(mi).unwrap();
-        let tr = tracker::announce(&cl, &bt, None, &ns).await;
+        let tr = tracker::announce_to_tracker(&cl, &bt, None, &ns).await;
 
-        println!("Torrent: {:#?}", tr);
         assert!(tr.is_ok(), "Tracker announce should succeed with local tracker");
+
+        let tr = tr.unwrap().bytes().await.unwrap();
+
+        let tr = BTrackerResponse::from_bytes(&tr);
+
+        println!("Response: {:#?}", tr);
 
         Ok(())
     }

@@ -12,15 +12,14 @@ use crate::config::NetworkSettings;
 use crate::util::get_utf8_value;
 
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum BAnnounceEvent {
     Started,
     Completed,
     Stopped,
 }
 
-
-pub async fn announce(
+pub async fn announce_to_tracker(
     client: &Client,
     torrent: &BTorrent,
     event: Option<BAnnounceEvent>,
@@ -66,6 +65,7 @@ pub async fn announce(
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct BTrackerResponse {
     peers: Vec<BPeer>,
     interval: isize, // suggested minimum announce interval, in seconds
@@ -88,11 +88,6 @@ impl BTrackerResponse {
         // Extract tracker response from the parsed bencode value
         BTrackerResponse::from_bencode_value(&value)
     }
-
-    // pub async fn from_response(response: reqwest::Response) -> Result<BTrackerResponse, String> {
-    // 	let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-    // 	BTrackerResponse::from_bytes(&bytes)
-    // }
 
     fn from_bencode_value(value: &BencodeValue) -> Result<BTrackerResponse, String> {
         match value {
@@ -159,6 +154,7 @@ impl BTrackerResponse {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 struct BPeer {
     ip: IpAddr,
     peer_id: String,
@@ -192,7 +188,6 @@ impl BPeer {
         })
     }
 }
-
 
 fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
     let mut peers = Vec::new();
