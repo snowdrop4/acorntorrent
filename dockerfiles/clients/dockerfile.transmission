@@ -1,0 +1,9 @@
+FROM alpine:3.19
+
+RUN apk add --no-cache transmission-daemon transmission-cli curl
+
+RUN mkdir -p /data/downloads /data/watch /data/config
+
+EXPOSE 51413 9091
+
+CMD ["transmission-daemon", "--foreground", "--no-auth", "--allowed", "*", "--download-dir", "/data/downloads"]

@@ -9,7 +9,6 @@ use acornbencode::common::BencodeValue;
 
 use crate::torrent::BTorrent;
 use crate::config::NetworkSettings;
-use crate::util::get_utf8_value;
 
 
 #[derive(PartialEq, Debug)]
@@ -29,7 +28,7 @@ pub async fn announce_to_tracker(
     // raw bytes as input to be url encoded, so we need to work around this by manually
     // url encoding our info hash and peer id, and then manually adding them
     // to the url used for the `RequestBuilder`.
-    let url = format!("{}?info_hash={}peer_id={}",
+    let url = format!("{}?info_hash={}&peer_id={}",
         torrent.metainfo.announce,
         torrent.encoded_info_hash,
         torrent.encoded_peer_id,
@@ -38,7 +37,6 @@ pub async fn announce_to_tracker(
     let mut request = client.get(&url);
 
     request = request.query(&[
-            ("info_hash",  &torrent.encoded_info_hash),
             ("port",       &network_settings.port.to_string()),
             ("uploaded",   &torrent.uploaded.to_string()),
             ("downloaded", &torrent.downloaded.to_string()),
@@ -47,7 +45,7 @@ pub async fn announce_to_tracker(
 
     // Optional key.
     if let Some(ip) = &network_settings.ip {
-        request = request.query(&["ip", ip]);
+        request = request.query(&[("ip", ip)]);
     }
 
     // The `event` key is only necessary if the announce is not for one of the
@@ -58,7 +56,7 @@ pub async fn announce_to_tracker(
             BAnnounceEvent::Completed => "completed",
             BAnnounceEvent::Stopped   => "stopped",
         };
-        request = request.query(&["event", val]);
+        request = request.query(&[("event", val)]);
     }
 
     request.send().await
@@ -157,24 +155,30 @@ impl BTrackerResponse {
 #[derive(Debug)]
 struct BPeer {
     ip: IpAddr,
-    peer_id: String,
+    peer_id: Option<Vec<u8>>,
     port: u16,
 }
 
 impl BPeer {
     fn from_bencode_dict(dict: &BTreeMap<&[u8], BencodeValue>) -> Result<Self, String> {
+        // Parse IP
         let ip_string = match dict.get(b"ip".as_ref()) {
             Some(BencodeValue::ByteString(s)) => s,
             None => return Err("missing field 'ip'".to_string()),
             _ => return Err("field 'ip' must be a string".to_string()),
         };
 
-        // Parse IP address
         let ip: IpAddr = str::from_utf8(ip_string).expect("Invalid UTF-8").parse()
             .map_err(|_| "Invalid IP address".to_string())?;
 
-        let peer_id = get_utf8_value(dict, b"peer id")?;
+        // Parse Peer ID
+        let peer_id = match dict.get(b"peer id".as_ref()) {
+            Some(BencodeValue::ByteString(bytes)) => Some(bytes.to_vec()),
+            None => None, // peer_id is optional
+            _ => return Err("field 'peer id' must be a byte string".to_string()),
+        };
 
+        // Parse Port
         let port = match dict.get(b"port".as_ref()) {
             Some(BencodeValue::Integer(val)) => *val as u16,
             None => return Err("missing field 'port'".to_string()),
@@ -206,7 +210,7 @@ fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
 
         peers.push(BPeer {
             ip,
-            peer_id: String::from(""),
+            peer_id: None, // Compact format doesn't include peer IDs
             port,
         });
     }
@@ -231,7 +235,7 @@ fn parse_compact_ipv6_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
 
         peers.push(BPeer {
             ip,
-            peer_id: String::from(""),
+            peer_id: None, // Compact format doesn't include peer IDs
             port,
         });
     }

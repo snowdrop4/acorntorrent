@@ -1,0 +1,40 @@
+# name: Integration Tests
+
+# on:
+#   pull_request:
+#   push:
+#     branches: [master]
+
+# jobs:
+#   integration-tests:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.13'
+
+#       - name: Install uv
+#         uses: astral-sh/setup-uv@v4
+
+#       - name: Install transmission-cli
+#         run: sudo apt-get update && sudo apt-get install -y transmission-cli
+
+#       - name: Generate test data
+#         run: |
+#           cd integration_tests
+#           uv run python generate_test_data.py
+
+#       - name: Generate docker-compose files
+#         run: |
+#           cd integration_tests
+#           uv run python generate_test_matrix.py
+
+#       - name: Run integration tests
+#         run: |
+#           cd integration_tests
+#           uv run python run_integration_tests.py

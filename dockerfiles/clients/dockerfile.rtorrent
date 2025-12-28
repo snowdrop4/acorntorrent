@@ -1,0 +1,9 @@
+FROM alpine:3.19
+
+RUN apk add --no-cache rtorrent curl bash
+
+RUN mkdir -p /data/downloads /data/watch /data/session
+
+EXPOSE 50000 5000
+
+CMD ["rtorrent", "-n", "-o", "directory.default.set=/data/downloads", "-o", "session.path.set=/data/session"]

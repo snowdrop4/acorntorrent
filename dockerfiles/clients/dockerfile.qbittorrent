@@ -1,0 +1,9 @@
+FROM alpine:3.19
+
+RUN apk add --no-cache qbittorrent-nox curl python3
+
+RUN mkdir -p /data/downloads /data/config
+
+EXPOSE 6881 8080
+
+CMD ["qbittorrent-nox", "--webui-port=8080", "--profile=/data/config"]

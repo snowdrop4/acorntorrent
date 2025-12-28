@@ -1,0 +1,18 @@
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache git
+
+WORKDIR /build
+RUN git clone https://github.com/chihaya/chihaya.git && \
+    cd chihaya && \
+    go build -o chihaya ./cmd/chihaya
+
+FROM alpine:3.19
+
+WORKDIR /opt/chihaya
+COPY --from=builder /build/chihaya/chihaya /opt/chihaya/
+COPY --from=builder /build/chihaya/dist/example_config.yaml /opt/chihaya/config.yaml
+
+EXPOSE 6969 6880
+
+CMD ["/opt/chihaya/chihaya", "--config=/opt/chihaya/config.yaml"]
