@@ -125,7 +125,7 @@ impl BTrackerResponse {
                     },
                     // Parse compact format peers
                     Some(BencodeValue::ByteString(bytes)) => {
-                        parse_compact_ipv4_peer_list(*bytes)?
+                        parse_compact_ipv4_peer_list(bytes)?
                     },
                     // Otherwise, throw an error
                     None => return Err("missing field 'peers'".to_string()),

@@ -24,7 +24,7 @@ pub fn get_optional_utf8_value(dict: &BTreeMap<&[u8], BencodeValue>, key: &[u8])
             str::from_utf8(s)
                 .map(|s| s.to_string())
                 .map_err(|_| format!("Field '{}' must be a valid UTF-8 string", str::from_utf8(key).unwrap()))
-                .map(|s| Some(s))
+                .map(Some)
         },
         _ => Ok(None),
     }

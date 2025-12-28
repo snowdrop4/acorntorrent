@@ -109,7 +109,7 @@ mod tests {
     ) {
         let path_str = torrent_file.to_str().unwrap();
 
-        let expected = parse_transmission_show_from_command(&path_str);
+        let expected = parse_transmission_show_from_command(path_str);
         let actual = BMetainfo::from_path(&torrent_file).unwrap();
 
         println!("----------");

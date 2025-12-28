@@ -7,7 +7,6 @@ mod tests {
     use wiremock::matchers::{method, path_regex};
 
     use reqwest::Client;
-    use tokio;
 
     use crate::config;
     use crate::metainfo;

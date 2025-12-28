@@ -187,10 +187,9 @@ impl BInfo {
     pub fn metainfo_total_size_bytes(&self) -> isize {
         if let Some(files) = &self.files {
             files.iter().map(|f| f.length).sum()
-        } else if let Some(length) = self.length {
-            length
-        } else {
-            0
+        }
+        else {
+            self.length.unwrap_or(0)
         }
     }
 
@@ -222,7 +221,7 @@ impl BInfo {
         }
 
         // Add the rest of the fields
-        info_dict.insert("name".as_bytes(), BencodeValue::ByteString(&self.name.as_bytes()));
+        info_dict.insert("name".as_bytes(), BencodeValue::ByteString(self.name.as_bytes()));
         info_dict.insert("piece length".as_bytes(), BencodeValue::Integer(self.piece_size));
         info_dict.insert("pieces".as_bytes(), BencodeValue::ByteString(&self.pieces));
 
@@ -358,11 +357,11 @@ mod tests {
         let mut err = false;
 
         for entry in path.read_dir().expect("read_dir call failed") {
-            if let Ok(entry) = entry {
-                if let Err(e) = BMetainfo::from_path(&entry.path()) {
-                    println!("{:?}, {:?}", entry.path(), e);
-                    err = true;
-                }
+            let entry = entry.expect("Failed to read dir entry");
+
+            if let Err(e) = BMetainfo::from_path(&entry.path()) {
+                println!("{:?}, {:?}", entry.path(), e);
+                err = true;
             }
         }
 
