@@ -2,15 +2,13 @@
 
 pub mod config;
 
-mod formatting;
-
 mod metainfo_test;
 pub mod metainfo;
 
 pub mod torrent;
 
-pub mod tracker;
 mod tracker_test;
+pub mod tracker;
 
 mod util;
 

@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::path::PathBuf;
-    use std::time::Duration;
-    use rstest::rstest;
     use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::{method, path_regex};
 
@@ -12,6 +11,7 @@ mod tests {
     use crate::metainfo;
     use crate::torrent;
     use crate::tracker;
+    use crate::tracker::BTrackerResponse;
 
     async fn setup_mock_tracker() -> MockServer {
         let mock_server = MockServer::start().await;
@@ -26,38 +26,49 @@ mod tests {
         mock_server
     }
 
-    #[rstest]
-    #[timeout(Duration::from_millis(100))]
     #[tokio::test]
-    async fn test_announce(
-        #[files("test_torrents/*.torrent")]
-        torrent_file: PathBuf
-    ) -> Result<(), String> {
-        use crate::tracker::BTrackerResponse;
+    async fn test_announce() -> Result<(), String> {
+        let test_dir = PathBuf::from("test_torrents");
+        let mut torrent_files: Vec<_> = fs::read_dir(&test_dir)
+            .expect("Failed to read test_torrents directory")
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                if path.extension()? == "torrent" {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        let mock_server = setup_mock_tracker().await;
-        let local_tracker_url = format!("{}/announce", mock_server.uri());
+        torrent_files.sort();
 
-        let cl = Client::new();
-        let ns = config::NetworkSettings {
-            ip: None,
-            port: 6000,
-        };
+        for torrent_file in torrent_files {
+            let mock_server = setup_mock_tracker().await;
+            let local_tracker_url = format!("{}/announce", mock_server.uri());
 
-        let mut mi = metainfo::BMetainfo::from_path(torrent_file.as_path()).unwrap();
-        // Override the tracker URL to use our local mock server
-        mi.announce = local_tracker_url;
+            let cl = Client::new();
+            let ns = config::NetworkSettings {
+                ip: None,
+                port: 6000,
+            };
 
-        let bt = torrent::BTorrent::new(mi).unwrap();
-        let tr = tracker::announce_to_tracker(&cl, &bt, None, &ns).await;
+            let mut mi = metainfo::BMetainfo::from_path(torrent_file.as_path()).unwrap();
+            // Override the tracker URL to use our local mock server
+            mi.announce = local_tracker_url;
 
-        assert!(tr.is_ok(), "Tracker announce should succeed with local tracker");
+            let bt = torrent::BTorrent::new(mi).unwrap();
+            let tr = tracker::announce_to_tracker(&cl, &bt, None, &ns).await;
 
-        let tr = tr.unwrap().bytes().await.unwrap();
+            assert!(tr.is_ok(), "Tracker announce should succeed with local tracker");
 
-        let tr = BTrackerResponse::from_bytes(&tr);
+            let tr = tr.unwrap().bytes().await.unwrap();
 
-        println!("Response: {:#?}", tr);
+            let tr = BTrackerResponse::from_bytes(&tr);
+
+            println!("Response: {:#?}", tr);
+        }
 
         Ok(())
     }

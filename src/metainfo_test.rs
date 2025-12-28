@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::process::Command;
     use std::path::PathBuf;
-    use rstest::rstest;
 
-    use crate::formatting::{format_datetime_to_localtime, parse_size_to_bytes, fuzzy_format_bytes_to_si};
+    use crate::util::formatting::{format_datetime_to_localtime, parse_size_to_bytes, fuzzy_format_bytes_to_si};
     use crate::metainfo::BMetainfo;
 
     #[derive(Debug)]
@@ -87,8 +88,6 @@ mod tests {
     }
 
     fn parse_transmission_show_from_command(torrent_file: &str) -> TorrentInfo {
-        use std::process::Command;
-
         let output = Command::new("transmission-show")
             .arg("--info")
             .arg(torrent_file)
@@ -102,52 +101,68 @@ mod tests {
         parse_transmission_show_info(&stdout)
     }
 
-    #[rstest]
-    fn test_torrent_corpus_transmission_show_info(
-        #[files("test_torrents/*.torrent")]
-        torrent_file: PathBuf
-    ) {
-        let path_str = torrent_file.to_str().unwrap();
+    #[test]
+    fn test_torrent_corpus_transmission_show_info() {
+        let test_dir = PathBuf::from("test_torrents");
+        let mut torrent_files: Vec<_> = fs::read_dir(&test_dir)
+            .expect("Failed to read test_torrents directory")
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                if path.extension()? == "torrent" {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        let expected = parse_transmission_show_from_command(path_str);
-        let actual = BMetainfo::from_path(&torrent_file).unwrap();
+        torrent_files.sort();
 
-        println!("----------");
-        println!("Path: {}", &path_str);
-        println!("----------");
+        for torrent_file in torrent_files {
+            let path_str = torrent_file.to_str().unwrap();
 
-        // assert_eq!(actual.info.compute_hash(), expected.hash_v1);
+            let expected = parse_transmission_show_from_command(path_str);
+            let actual = BMetainfo::from_path(&torrent_file).unwrap();
 
-        println!("Created By:     {:?}, {:?}", actual.created_by, expected.created_by);
-        assert_eq!(actual.created_by, expected.created_by);
+            println!("----------");
+            println!("Path: {}", &path_str);
+            println!("----------");
 
-        println!("Created On:     {:?}, {:?}", actual.created_on, expected.created_on);
-        if actual.created_on.is_some() || expected.created_on.is_some() {
-            assert_eq!(actual.created_on.is_some(), expected.created_on.is_some());
-            assert_eq!(format_datetime_to_localtime(actual.created_on.unwrap() as i64), expected.created_on.unwrap());
-        }
+            println!("Hash v1:        {:?}, {:?}", hex::encode(actual.info.compute_hash().unwrap()), expected.hash_v1);
+            assert_eq!(hex::encode(actual.info.compute_hash().unwrap()), expected.hash_v1.unwrap());
 
-        println!("Comment:        {:?}, {:?}", actual.comment, expected.comment);
-        assert_eq!(actual.comment, expected.comment);
+            println!("Created By:     {:?}, {:?}", actual.created_by, expected.created_by);
+            assert_eq!(actual.created_by, expected.created_by);
 
-        println!("Piece Count:    {:?}, {:?}", actual.info.total_piece_count(), expected.piece_count);
-        assert_eq!(actual.info.total_piece_count().to_string(), expected.piece_count.unwrap());
+            println!("Created On:     {:?}, {:?}", actual.created_on, expected.created_on);
+            if actual.created_on.is_some() || expected.created_on.is_some() {
+                assert_eq!(actual.created_on.is_some(), expected.created_on.is_some());
+                assert_eq!(format_datetime_to_localtime(actual.created_on.unwrap() as i64), expected.created_on.unwrap());
+            }
 
-        let expected_piece_size_bytes = parse_size_to_bytes(&expected.piece_size.unwrap()).unwrap();
-        println!("Piece Size:     {:?}, {:?}", actual.info.piece_size as u64, expected_piece_size_bytes);
-        assert_eq!(actual.info.piece_size as u64, expected_piece_size_bytes);
+            println!("Comment:        {:?}, {:?}", actual.comment, expected.comment);
+            assert_eq!(actual.comment, expected.comment);
 
-        let expected_total_size_str = expected.total_size.as_ref().unwrap();
-        let actual_total_size_bytes = actual.info.metainfo_total_size_bytes() as u64;
-        let actual_total_size_formatted = fuzzy_format_bytes_to_si(actual_total_size_bytes);
-        println!("Total Size:     {} bytes -> {:?}, {:?}", actual_total_size_bytes, actual_total_size_formatted, expected_total_size_str);
-        assert_eq!(actual_total_size_formatted, *expected_total_size_str);
+            println!("Piece Count:    {:?}, {:?}", actual.info.total_piece_count(), expected.piece_count);
+            assert_eq!(actual.info.total_piece_count().to_string(), expected.piece_count.unwrap());
 
-        println!("Private:        {:?}, {:?}", actual.info.private, expected.privacy);
-        if actual.info.private.is_some() || expected.privacy.is_some() {
-            let actual_is_private = actual.info.private.unwrap_or(false);
-            let expected_is_private = expected.privacy.unwrap() != "Public torrent";
-            assert_eq!(actual_is_private, expected_is_private);
+            let expected_piece_size_bytes = parse_size_to_bytes(&expected.piece_size.unwrap()).unwrap();
+            println!("Piece Size:     {:?}, {:?}", actual.info.piece_size as u64, expected_piece_size_bytes);
+            assert_eq!(actual.info.piece_size as u64, expected_piece_size_bytes);
+
+            let expected_total_size_str = expected.total_size.as_ref().unwrap();
+            let actual_total_size_bytes = actual.info.metainfo_total_size_bytes() as u64;
+            let actual_total_size_formatted = fuzzy_format_bytes_to_si(actual_total_size_bytes);
+            println!("Total Size:     {} bytes -> {:?}, {:?}", actual_total_size_bytes, actual_total_size_formatted, expected_total_size_str);
+            assert_eq!(actual_total_size_formatted, *expected_total_size_str);
+
+            println!("Private:        {:?}, {:?}", actual.info.private, expected.privacy);
+            if actual.info.private.is_some() || expected.privacy.is_some() {
+                let actual_is_private = actual.info.private.unwrap_or(false);
+                let expected_is_private = expected.privacy.unwrap() != "Public torrent";
+                assert_eq!(actual_is_private, expected_is_private);
+            }
         }
     }
 }

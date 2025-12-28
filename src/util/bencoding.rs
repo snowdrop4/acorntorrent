@@ -5,7 +5,6 @@ use std::str;
 
 type DecodingError = String;
 
-// Helper functions to extract values from dictionaries
 pub fn get_utf8_value(dict: &BTreeMap<&[u8], BencodeValue>, key: &[u8]) -> Result<String, DecodingError> {
     match dict.get(key) {
         Some(BencodeValue::ByteString(s)) => {

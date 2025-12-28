@@ -7,12 +7,54 @@ use std::str;
 use ring::digest;
 use acornbencode::parser::parse_bencode;
 use acornbencode::common::BencodeValue;
-use acornbencode::encoder;
 
-use crate::util::{get_optional_utf8_value, get_utf8_value};
+use crate::util::bencoding::{get_optional_utf8_value, get_utf8_value};
 
 type DecodingError = String;
 type EncodingError = String;
+
+// Extract the raw bytes of the info dictionary from a torrent file.
+// This is used for calculating the infohash. If we hash the raw bytes,
+// then our hash reflects all additional/optional/unrecognised keys inside
+// the dictionary, that our parser would otherwise ignore.
+//
+// Technically the spec is a bit ambigious about the correct behaviour
+// regarding additional/optional keys.
+//
+// It just says:
+//
+// > The 20 byte sha1 hash of the bencoded form of the info value from the
+// > metainfo file. This value will almost certainly have to be escaped.
+// >
+// > Note that this is a substring of the metainfo file. The info-hash must be
+// the hash of the encoded form as found in the .torrent file, which is identical
+// to bdecoding the metainfo file, extracting the info dictionary and encoding
+// it if and only if the bdecoder fully validated the input (e.g. key ordering,
+// absence of leading zeros). Conversely that means clients must either reject
+// invalid metainfo files or extract the substring directly. They must not
+// perform a decode-encode roundtrip on invalid data.
+
+fn extract_raw_info_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodingError> {
+    // Find "4:info" in the bencode data
+    let info_key = b"4:info";
+    let pos = bytes.windows(info_key.len())
+        .position(|window| window == info_key)
+        .ok_or("Could not find '4:info' in torrent file")?;
+
+    // The info dictionary VALUE starts after "4:info"
+    let info_start = pos + info_key.len();
+
+    // Parse the info dictionary value using the bencode parser
+    // The parser will correctly handle all bencode structures and return the remaining bytes
+    let (remaining, _) = parse_bencode(&bytes[info_start..])
+        .map_err(|e| format!("Failed to parse info dictionary: {:?}", e))?;
+
+    // The info dict length is: total bytes from info_start minus remaining bytes
+    let info_len = bytes[info_start..].len() - remaining.len();
+    let info_end = info_start + info_len;
+
+    Ok(bytes[info_start..info_end].to_vec())
+}
 
 
 #[derive(Debug)]
@@ -49,8 +91,11 @@ impl BMetainfo {
             return Err("Erroneous data at the end of the metainfo file".to_string());
         }
 
+        // Extract raw info bytes from the original bytes
+        let raw_info_bytes = extract_raw_info_bytes(bytes)?;
+
         // Extract metainfo from the parsed bencode value
-        BMetainfo::from_bencode_value(&value)
+        BMetainfo::from_bencode_value(&value, raw_info_bytes)
     }
 
     pub fn from_path(path: &Path) -> Result<BMetainfo, DecodingError> {
@@ -61,7 +106,51 @@ impl BMetainfo {
         BMetainfo::from_bytes(&b)
     }
 
-    fn from_bencode_value_anounce_list(
+    fn from_bencode_value(value: &BencodeValue, raw_info_bytes: Vec<u8>) -> Result<BMetainfo, DecodingError> {
+        let dict = match value {
+            BencodeValue::Dictionary(dict) => dict,
+            _ => return Err("Metainfo must be a dictionary".to_string()),
+        };
+
+        let announce = get_utf8_value(dict, b"announce")?;
+        let announce_list = BMetainfo::from_bencode_value_announce_list(dict)?;
+        let comment = get_optional_utf8_value(dict, b"comment")?;
+        let created_by = get_optional_utf8_value(dict, b"created by")?;
+
+        let created_on = match dict.get(b"creation date".as_ref()) {
+            Some(BencodeValue::Integer(val)) => Some(*val),
+            None => None,
+            _ => return Err("field 'creation date' must be an integer".to_string()),
+        };
+
+        let encoding = match get_optional_utf8_value(dict, b"encoding") {
+            Ok(Some(e)) => {
+                if e.to_lowercase() != "utf-8" {
+                    return Err(format!("only UTF-8 encoding is supported; encountered encoding '{}' instead", e));
+                }
+                Some(e)
+            }
+            _ => None,
+        };
+
+        let info = match dict.get(b"info".as_ref()) {
+            Some(BencodeValue::Dictionary(info_dict)) => BInfo::from_bencode_dict(info_dict, raw_info_bytes)?,
+            None => return Err("missing field 'info'".to_string()),
+            _ => return Err("field 'info' must be a dictionary".to_string()),
+        };
+
+        Ok(BMetainfo {
+            announce,
+            announce_list,
+            comment,
+            created_by,
+            created_on,
+            encoding,
+            info,
+        })
+    }
+
+    fn from_bencode_value_announce_list(
         dict: &BTreeMap<&[u8], BencodeValue>,
     ) -> Result<Option<Vec<Vec<String>>>, DecodingError> {
         let raw_announce_list = match dict.get(b"announce-list".as_ref()) {
@@ -93,64 +182,20 @@ impl BMetainfo {
 
         Ok(Some(announce_tiers))
     }
-
-    fn from_bencode_value(value: &BencodeValue) -> Result<BMetainfo, DecodingError> {
-        let dict = match value {
-            BencodeValue::Dictionary(dict) => dict,
-            _ => return Err("Metainfo must be a dictionary".to_string()),
-        };
-
-        let announce = get_utf8_value(dict, b"announce")?;
-        let announce_list = BMetainfo::from_bencode_value_anounce_list(dict)?;
-        let comment = get_optional_utf8_value(dict, b"comment")?;
-        let created_by = get_optional_utf8_value(dict, b"created by")?;
-
-        let created_on = match dict.get(b"creation date".as_ref()) {
-            Some(BencodeValue::Integer(val)) => Some(*val),
-            None => None,
-            _ => return Err("field 'creation date' must be an integer".to_string()),
-        };
-
-        let encoding = match get_optional_utf8_value(dict, b"encoding") {
-            Ok(Some(e)) => {
-                if e.to_lowercase() != "utf-8" {
-                    return Err(format!("only UTF-8 encoding is supported; encountered encoding '{}' instead", e));
-                }
-                Some(e)
-            }
-            _ => None,
-        };
-
-        let info = match dict.get(b"info".as_ref()) {
-            Some(BencodeValue::Dictionary(info_dict)) => BInfo::from_bencode_dict(info_dict)?,
-            None => return Err("missing field 'info'".to_string()),
-            _ => return Err("field 'info' must be a dictionary".to_string()),
-        };
-
-        Ok(BMetainfo {
-            announce,
-            announce_list,
-            comment,
-            created_by,
-            created_on,
-            encoding,
-            info,
-        })
-    }
 }
 
 
 #[derive(Debug)]
 pub struct BInfo {
-    // These are mutually exclusive of one another:
+    //                              These are mutually exclusive of one another:
     pub files:  Option<Vec<BFile>>, // Multi-file torrents
     pub length: Option<isize>,      // Single-file torrents
 
-    // Suggested title for the torrent.
+    // The suggested title for the torrent.
     // If the torrent is a single-file torrent, this is also the suggested filename.
     pub name: String,
 
-    // Length in bytes of each piece.
+    // The length (in bytes) of each piece.
     pub piece_size: isize,
 
     // 20-byte hashes of every single piece, concated together.
@@ -166,6 +211,15 @@ pub struct BInfo {
     // will force a different infohash by setting `source`, even if the rest of
     // the torrent is identical.
     pub source: Option<String>,
+
+    // The raw bytes of the info dictionary from the original torrent file.
+    //
+    // This is used when computing the info hash, as our parser ignores
+    // additional/optional/unrecognised keys in the info dictionary.
+    //
+    // It also means that we don't need to go through a decode-encode roundtip,
+    // which may cause the hash to be different than intended.
+    raw_info_bytes: Vec<u8>,
 }
 
 impl BInfo {
@@ -198,55 +252,14 @@ impl BInfo {
     // -------------------------------------------------------------------------
 
     pub fn compute_hash(&self) -> Result<Vec<u8>, EncodingError> {
-        // Create a BencodeValue dictionary representing this BInfo
-        let mut info_dict = BTreeMap::new();
-
-        // Add files or length (mutually exclusive)
-        if let Some(files) = &self.files {
-            let mut file_list = Vec::new();
-            for file in files {
-                let mut file_dict = BTreeMap::new();
-                file_dict.insert("length".as_bytes(), BencodeValue::Integer(file.length));
-
-                let path_list: Vec<BencodeValue> = file.path.iter()
-                    .map(|s| BencodeValue::ByteString(s.as_bytes()))
-                    .collect();
-
-                file_dict.insert("path".as_bytes(), BencodeValue::List(path_list));
-                file_list.push(BencodeValue::Dictionary(file_dict));
-            }
-            info_dict.insert("files".as_bytes(), BencodeValue::List(file_list));
-        } else if let Some(length) = self.length {
-            info_dict.insert("length".as_bytes(), BencodeValue::Integer(length));
-        }
-
-        // Add the rest of the fields
-        info_dict.insert("name".as_bytes(), BencodeValue::ByteString(self.name.as_bytes()));
-        info_dict.insert("piece length".as_bytes(), BencodeValue::Integer(self.piece_size));
-        info_dict.insert("pieces".as_bytes(), BencodeValue::ByteString(&self.pieces));
-
-        if let Some(private) = self.private {
-            info_dict.insert("private".as_bytes(), BencodeValue::Integer(if private { 1 } else { 0 }));
-        }
-
-        if let Some(source) = &self.source {
-            info_dict.insert("source".as_bytes(), BencodeValue::ByteString(source.as_bytes()));
-        }
-
-        // Convert to a BencodeValue and encode
-        let info_value = BencodeValue::Dictionary(info_dict);
-        let encoded = encoder::encode_to_bytes(&info_value)
-            .map_err(|e| format!("Failed to encode info: {}", e))?;
-
-        // Calculate the SHA1 hash
-        Ok(digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &encoded).as_ref().to_vec())
+        Ok(digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &self.raw_info_bytes).as_ref().to_vec())
     }
 
     // -------------------------------------------------------------------------
     // Parsing
     // -------------------------------------------------------------------------
 
-    pub fn from_bencode_dict(dict: &BTreeMap<&[u8], BencodeValue>) -> Result<Self, DecodingError> {
+    pub fn from_bencode_dict(dict: &BTreeMap<&[u8], BencodeValue>, raw_info_bytes: Vec<u8>) -> Result<Self, DecodingError> {
         let files = match dict.get(b"files".as_ref()) {
             Some(BencodeValue::List(list)) => {
                 let mut files_vec = Vec::new();
@@ -305,6 +318,7 @@ impl BInfo {
             pieces,
             private,
             source,
+            raw_info_bytes,
         })
     }
 }
