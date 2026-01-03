@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
-use std::path::PathBuf;
-use clap::{Parser, Subcommand};
+use acorntorrent::config::NetworkSettings;
 use acorntorrent::metainfo::BMetainfo;
 use acorntorrent::torrent::BTorrent;
 use acorntorrent::tracker::{announce_to_tracker, BAnnounceEvent, BTrackerResponse};
-use acorntorrent::config::NetworkSettings;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "acorntorrent")]
@@ -42,7 +42,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Announce { torrent, port, event, verbose } => {
+        Commands::Announce {
+            torrent,
+            port,
+            event,
+            verbose,
+        } => {
             // Load the torrent file
             if verbose {
                 println!("Loading torrent file: {}", torrent.display());
@@ -51,8 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .map_err(|e| format!("Failed to load torrent: {}", e))?;
 
             // Create torrent instance
-            let mut btorrent = BTorrent::new(metainfo)
-                .map_err(|e| format!("Failed to create torrent: {}", e))?;
+            let mut btorrent =
+                BTorrent::new(metainfo).map_err(|e| format!("Failed to create torrent: {}", e))?;
 
             // For testing purposes, set the file size from metainfo
             // In a real implementation, this would be calculated from actual downloaded files
@@ -87,7 +92,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let client = reqwest::Client::new();
-            let response = announce_to_tracker(&client, &btorrent, announce_event, &network_settings).await?;
+            let response =
+                announce_to_tracker(&client, &btorrent, announce_event, &network_settings).await?;
 
             if verbose {
                 println!("Response status: {}", response.status());
@@ -106,7 +112,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Err(e) => {
                     eprintln!("✗ Failed to parse tracker response: {}", e);
-                    eprintln!("Raw response: {:?}", String::from_utf8_lossy(&response_bytes));
+                    eprintln!(
+                        "Raw response: {:?}",
+                        String::from_utf8_lossy(&response_bytes)
+                    );
                     std::process::exit(1);
                 }
             }

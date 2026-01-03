@@ -2,8 +2,8 @@
 mod tests {
     use std::fs;
     use std::path::PathBuf;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use reqwest::Client;
 
@@ -61,7 +61,10 @@ mod tests {
             let bt = torrent::BTorrent::new(mi).unwrap();
             let tr = tracker::announce_to_tracker(&cl, &bt, None, &ns).await;
 
-            assert!(tr.is_ok(), "Tracker announce should succeed with local tracker");
+            assert!(
+                tr.is_ok(),
+                "Tracker announce should succeed with local tracker"
+            );
 
             let tr = tr.unwrap().bytes().await.unwrap();
 

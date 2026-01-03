@@ -1,0 +1,23 @@
+name: 🐛 Test
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.ref_name }}_${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: [ubuntu-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Tests
+      run: cargo test
+

@@ -1,12 +1,12 @@
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::collections::BTreeMap;
 use std::str;
 
-use ring::digest;
-use acornbencode::parser::parse_bencode;
 use acornbencode::common::BencodeValue;
+use acornbencode::parser::parse_bencode;
+use ring::digest;
 
 use crate::util::bencoding::{get_optional_utf8_value, get_utf8_value};
 
@@ -37,7 +37,8 @@ type EncodingError = String;
 fn extract_raw_info_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodingError> {
     // Find "4:info" in the bencode data
     let info_key = b"4:info";
-    let pos = bytes.windows(info_key.len())
+    let pos = bytes
+        .windows(info_key.len())
         .position(|window| window == info_key)
         .ok_or("Could not find '4:info' in torrent file")?;
 
@@ -55,7 +56,6 @@ fn extract_raw_info_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodingError> {
 
     Ok(bytes[info_start..info_end].to_vec())
 }
-
 
 #[derive(Debug)]
 pub struct BMetainfo {
@@ -101,12 +101,16 @@ impl BMetainfo {
     pub fn from_path(path: &Path) -> Result<BMetainfo, DecodingError> {
         let mut f = File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
         let mut b = Vec::new();
-        f.read_to_end(&mut b).map_err(|e| format!("Failed to read file: {}", e))?;
+        f.read_to_end(&mut b)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
 
         BMetainfo::from_bytes(&b)
     }
 
-    fn from_bencode_value(value: &BencodeValue, raw_info_bytes: Vec<u8>) -> Result<BMetainfo, DecodingError> {
+    fn from_bencode_value(
+        value: &BencodeValue,
+        raw_info_bytes: Vec<u8>,
+    ) -> Result<BMetainfo, DecodingError> {
         let dict = match value {
             BencodeValue::Dictionary(dict) => dict,
             _ => return Err("Metainfo must be a dictionary".to_string()),
@@ -126,7 +130,10 @@ impl BMetainfo {
         let encoding = match get_optional_utf8_value(dict, b"encoding") {
             Ok(Some(e)) => {
                 if e.to_lowercase() != "utf-8" {
-                    return Err(format!("only UTF-8 encoding is supported; encountered encoding '{}' instead", e));
+                    return Err(format!(
+                        "only UTF-8 encoding is supported; encountered encoding '{}' instead",
+                        e
+                    ));
                 }
                 Some(e)
             }
@@ -134,7 +141,9 @@ impl BMetainfo {
         };
 
         let info = match dict.get(b"info".as_ref()) {
-            Some(BencodeValue::Dictionary(info_dict)) => BInfo::from_bencode_dict(info_dict, raw_info_bytes)?,
+            Some(BencodeValue::Dictionary(info_dict)) => {
+                BInfo::from_bencode_dict(info_dict, raw_info_bytes)?
+            }
             None => return Err("missing field 'info'".to_string()),
             _ => return Err("field 'info' must be a dictionary".to_string()),
         };
@@ -172,7 +181,11 @@ impl BMetainfo {
 
             for tracker in raw_announce_tier_trackers {
                 match tracker {
-                    BencodeValue::ByteString(s) => announce_tier.push(str::from_utf8(s).expect("Invalid UTF-8 in announce-list").to_string()),
+                    BencodeValue::ByteString(s) => announce_tier.push(
+                        str::from_utf8(s)
+                            .expect("Invalid UTF-8 in announce-list")
+                            .to_string(),
+                    ),
                     _ => return Err("Invalid type in announce-list".to_string()),
                 }
             }
@@ -184,12 +197,11 @@ impl BMetainfo {
     }
 }
 
-
 #[derive(Debug)]
 pub struct BInfo {
     //                              These are mutually exclusive of one another:
-    pub files:  Option<Vec<BFile>>, // Multi-file torrents
-    pub length: Option<isize>,      // Single-file torrents
+    pub files: Option<Vec<BFile>>, // Multi-file torrents
+    pub length: Option<isize>,     // Single-file torrents
 
     // The suggested title for the torrent.
     // If the torrent is a single-file torrent, this is also the suggested filename.
@@ -241,8 +253,7 @@ impl BInfo {
     pub fn metainfo_total_size_bytes(&self) -> isize {
         if let Some(files) = &self.files {
             files.iter().map(|f| f.length).sum()
-        }
-        else {
+        } else {
             self.length.unwrap_or(0)
         }
     }
@@ -252,14 +263,21 @@ impl BInfo {
     // -------------------------------------------------------------------------
 
     pub fn compute_hash(&self) -> Result<Vec<u8>, EncodingError> {
-        Ok(digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &self.raw_info_bytes).as_ref().to_vec())
+        Ok(
+            digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &self.raw_info_bytes)
+                .as_ref()
+                .to_vec(),
+        )
     }
 
     // -------------------------------------------------------------------------
     // Parsing
     // -------------------------------------------------------------------------
 
-    pub fn from_bencode_dict(dict: &BTreeMap<&[u8], BencodeValue>, raw_info_bytes: Vec<u8>) -> Result<Self, DecodingError> {
+    pub fn from_bencode_dict(
+        dict: &BTreeMap<&[u8], BencodeValue>,
+        raw_info_bytes: Vec<u8>,
+    ) -> Result<Self, DecodingError> {
         let files = match dict.get(b"files".as_ref()) {
             Some(BencodeValue::List(list)) => {
                 let mut files_vec = Vec::new();
@@ -307,7 +325,10 @@ impl BInfo {
         let source = get_optional_utf8_value(dict, b"source".as_ref())?;
 
         if length.is_some() == files.is_some() {
-            return Err("Metainfo files must contain the field 'length' or 'files' (not both or none)".to_string());
+            return Err(
+                "Metainfo files must contain the field 'length' or 'files' (not both or none)"
+                    .to_string(),
+            );
         }
 
         Ok(BInfo {
@@ -323,11 +344,10 @@ impl BInfo {
     }
 }
 
-
 #[derive(Debug)]
 pub struct BFile {
     length: isize,
-    path: Vec<String>
+    path: Vec<String>,
 }
 
 impl BFile {
@@ -343,7 +363,11 @@ impl BFile {
                 let mut path_vec = Vec::new();
                 for item in list {
                     match item {
-                        BencodeValue::ByteString(s) => path_vec.push(str::from_utf8(s).expect("Invalid UTF-8 in path").to_string()),
+                        BencodeValue::ByteString(s) => path_vec.push(
+                            str::from_utf8(s)
+                                .expect("Invalid UTF-8 in path")
+                                .to_string(),
+                        ),
                         _ => return Err("field 'path' must be a list of strings".to_string()),
                     }
                 }
@@ -353,32 +377,6 @@ impl BFile {
             _ => return Err("field 'path' must be a list".to_string()),
         };
 
-        Ok(BFile {
-            length,
-            path,
-        })
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_torrent_corpus_read() {
-        let path = Path::new("test_torrents/");
-        let mut err = false;
-
-        for entry in path.read_dir().expect("read_dir call failed") {
-            let entry = entry.expect("Failed to read dir entry");
-
-            if let Err(e) = BMetainfo::from_path(&entry.path()) {
-                println!("{:?}, {:?}", entry.path(), e);
-                err = true;
-            }
-        }
-
-        assert!(!err);
+        Ok(BFile { length, path })
     }
 }

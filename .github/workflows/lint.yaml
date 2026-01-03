@@ -1,0 +1,28 @@
+name: 🔍 Lint
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.ref_name }}_${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: [ubuntu-latest]
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Format
+        run: cargo fmt
+
+      - name: Lint
+        run: cargo clippy

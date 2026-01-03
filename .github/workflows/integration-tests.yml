@@ -1,13 +1,18 @@
-# name: Integration Tests
+# name: 🐛 Integration Tests
 
 # on:
 #   pull_request:
 #   push:
 #     branches: [master]
 
+# concurrency:
+#   group: ${{ github.ref_name }}_${{ github.workflow }}
+#   cancel-in-progress: true
+
 # jobs:
 #   integration-tests:
-#     runs-on: ubuntu-latest
+#     name: Integration Tests
+#     runs-on: [ubuntu-latest]
 
 #     steps:
 #       - name: Checkout code

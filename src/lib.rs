@@ -2,20 +2,12 @@
 
 pub mod config;
 
-mod metainfo_test;
 pub mod metainfo;
+mod metainfo_test;
 
 pub mod torrent;
 
-mod tracker_test;
 pub mod tracker;
+mod tracker_test;
 
 mod util;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
