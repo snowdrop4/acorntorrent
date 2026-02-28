@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod state;
+
 pub mod config;
 
 pub mod metainfo;

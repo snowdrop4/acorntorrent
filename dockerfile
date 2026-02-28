@@ -29,6 +29,7 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/target/release/acorntorrent /app/acorntorrent
+COPY --from=builder /build/target/release/debug /app/debug
 
 # Create directories for data
 RUN mkdir -p /data/downloads /data/torrents

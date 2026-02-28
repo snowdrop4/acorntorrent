@@ -4,8 +4,8 @@ mod tests {
 
     use reqwest::Client;
     use wiremock::{
-        matchers::{method, path_regex},
         Mock, MockServer, ResponseTemplate,
+        matchers::{method, path_regex},
     };
 
     use crate::{config, metainfo, torrent, tracker, tracker::BTrackerResponse};
@@ -46,7 +46,7 @@ mod tests {
             let local_tracker_url = format!("{}/announce", mock_server.uri());
 
             let cl = Client::new();
-            let ns = config::NetworkSettings {
+            let ns = config::CNetworkSettings {
                 ip: None,
                 port: 6000,
             };

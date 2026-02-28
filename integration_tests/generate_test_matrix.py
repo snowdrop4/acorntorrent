@@ -90,7 +90,7 @@ def get_acorntorrent_config() -> dict[str, Any]:
         ],
         "networks": ["torrent-test"],
         "depends_on": ["{tracker}"],
-        "command": "sh -c 'cp /app/acorntorrent /shared/bin/ && tail -f /dev/null'",
+        "command": "sh -c 'cp /app/debug /shared/bin/acorntorrent && tail -f /dev/null'",
     }
 
 

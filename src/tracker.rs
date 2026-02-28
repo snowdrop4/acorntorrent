@@ -8,7 +8,7 @@ use std::{
 use acornbencode::{common::BencodeValue, parser::parse_bencode};
 use reqwest::Client;
 
-use crate::{config::NetworkSettings, torrent::BTorrent};
+use crate::{config::CNetworkSettings, torrent::BTorrent};
 
 #[derive(PartialEq, Debug)]
 pub enum BAnnounceEvent {
@@ -21,7 +21,7 @@ pub async fn announce_to_tracker(
     client: &Client,
     torrent: &BTorrent,
     event: Option<BAnnounceEvent>,
-    network_settings: &NetworkSettings,
+    network_settings: &CNetworkSettings,
 ) -> Result<reqwest::Response, reqwest::Error> {
     // `reqwest` (and the `serde_urlencoded` library it relies on) doesn't accept
     // raw bytes as input to be url encoded, so we need to work around this by manually
@@ -119,7 +119,7 @@ impl BTrackerResponse {
                                 _ => {
                                     return Err(
                                         "field 'peers' must be a list of dictionaries".to_string()
-                                    )
+                                    );
                                 }
                             }
                         }

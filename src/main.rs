@@ -1,127 +1,77 @@
-#![allow(dead_code)]
-
+use acorntorrent::config::CClientConfig;
+use acorntorrent::state::{CState, CTorrent};
 use std::path::PathBuf;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 
-use acorntorrent::{
-    config::NetworkSettings,
-    metainfo::BMetainfo,
-    torrent::BTorrent,
-    tracker::{announce_to_tracker, BAnnounceEvent, BTrackerResponse},
-};
-use clap::{Parser, Subcommand};
+enum StateMessage {
+    // Torrents
+    AddTorrent { torrent: CTorrent },
+    RemoveTorrent { info_hash: Vec<u8> }, // Delete entry, keep files on disk
+    PurgeTorrent { info_hash: Vec<u8> },  // Delete entry, delete files on disk
 
-#[derive(Parser)]
-#[command(name = "acorntorrent")]
-#[command(about = "A BitTorrent client", long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
+    // Downloading
+    PieceCompleted { info_hash: Vec<u8>, piece: u64 },
+
+    // Other
+    Shutdown,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Announce to tracker
-    Announce {
-        /// Path to the .torrent file
-        #[arg(short, long)]
-        torrent: PathBuf,
+fn state_actor(mut state: CState, recv: Receiver<StateMessage>, state_path: &std::path::Path) {
+    loop {
+        let msg = recv.recv();
+        let msg = msg.unwrap_or(StateMessage::Shutdown);
 
-        /// Port to announce (default: 6881)
-        #[arg(short, long, default_value = "6881")]
-        port: u16,
-
-        /// Event type (started, completed, stopped)
-        #[arg(short, long)]
-        event: Option<String>,
-
-        /// Verbose output
-        #[arg(short, long)]
-        verbose: bool,
-    },
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Announce {
-            torrent,
-            port,
-            event,
-            verbose,
-        } => {
-            // Load the torrent file
-            if verbose {
-                println!("Loading torrent file: {}", torrent.display());
-            }
-            let metainfo = BMetainfo::from_path(&torrent)
-                .map_err(|e| format!("Failed to load torrent: {}", e))?;
-
-            // Create torrent instance
-            let mut btorrent =
-                BTorrent::new(metainfo).map_err(|e| format!("Failed to create torrent: {}", e))?;
-
-            // For testing purposes, set the file size from metainfo
-            // In a real implementation, this would be calculated from actual downloaded files
-            btorrent.left = btorrent.metainfo.info.metainfo_total_size_bytes() as u64;
-
-            if verbose {
-                println!("Tracker URL: {}", btorrent.metainfo.announce);
-                println!("Info hash: {}", hex::encode(&btorrent.info_hash));
-                println!("Peer ID: {}", hex::encode(&btorrent.peer_id));
-            }
-
-            // Parse event
-            let announce_event = event.as_ref().map(|e| match e.as_str() {
-                "started" => BAnnounceEvent::Started,
-                "completed" => BAnnounceEvent::Completed,
-                "stopped" => BAnnounceEvent::Stopped,
-                _ => {
-                    eprintln!("Warning: Unknown event '{}', using 'started'", e);
-                    BAnnounceEvent::Started
-                }
-            });
-
-            // Create network settings
-            let network_settings = NetworkSettings {
-                port: port.into(),
-                ip: None,
-            };
-
-            // Announce to tracker
-            if verbose {
-                println!("Announcing to tracker...");
-            }
-
-            let client = reqwest::Client::new();
-            let response =
-                announce_to_tracker(&client, &btorrent, announce_event, &network_settings).await?;
-
-            if verbose {
-                println!("Response status: {}", response.status());
-            }
-
-            // Parse the response
-            let response_bytes = response.bytes().await?;
-
-            match BTrackerResponse::from_bytes(&response_bytes) {
-                Ok(tracker_response) => {
-                    println!("✓ Successfully announced to tracker");
-                    if verbose {
-                        println!("Tracker response: {:?}", tracker_response);
-                    }
-                    Ok(())
-                }
-                Err(e) => {
-                    eprintln!("✗ Failed to parse tracker response: {}", e);
-                    eprintln!(
-                        "Raw response: {:?}",
-                        String::from_utf8_lossy(&response_bytes)
-                    );
-                    std::process::exit(1);
-                }
+        match msg {
+            StateMessage::AddTorrent { torrent } => {}
+            StateMessage::RemoveTorrent { info_hash } => {}
+            StateMessage::PurgeTorrent { info_hash } => {}
+            StateMessage::PieceCompleted { info_hash, piece } => {}
+            StateMessage::Shutdown => {
+                let _ = state.save(state_path);
+                break;
             }
         }
     }
+}
+
+struct StateHandle {
+    send: Sender<StateMessage>,
+}
+
+impl StateHandle {
+    fn add_torrent(&self, torrent: CTorrent) {
+        let result = self.send.send(StateMessage::AddTorrent { torrent });
+    }
+
+    fn remove_torrent(&self, info_hash: Vec<u8>) {
+        let result = self.send.send(StateMessage::RemoveTorrent { info_hash });
+    }
+
+    fn purge_torrent(&self, info_hash: Vec<u8>) {
+        let result = self.send.send(StateMessage::PurgeTorrent { info_hash });
+    }
+
+    fn piece_completed(&self, info_hash: Vec<u8>, piece: u64) {
+        let result = self
+            .send
+            .send(StateMessage::PieceCompleted { info_hash, piece });
+    }
+
+    fn shutdown(&self) {
+        let result = self.send.send(StateMessage::Shutdown);
+    }
+}
+
+fn main() {
+    let config_path = PathBuf::from("config.toml");
+    let config = CClientConfig::from_file(&config_path).expect("failed to read config.toml");
+
+    let cstate = CState::load(&config.state_path).unwrap_or_else(|_| CState::new());
+
+    let (send, recv) = channel::<StateMessage>();
+    let state_handle = StateHandle { send };
+
+    let state_path = config.state_path.clone();
+    thread::spawn(move || state_actor(cstate, recv, &state_path));
 }
