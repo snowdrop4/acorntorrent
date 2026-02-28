@@ -1,14 +1,14 @@
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::str;
+use std::{
+    collections::BTreeMap,
+    convert::TryFrom,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    str,
+};
 
-use acornbencode::common::BencodeValue;
-use acornbencode::parser::parse_bencode;
+use acornbencode::{common::BencodeValue, parser::parse_bencode};
 use reqwest::Client;
 
-use crate::config::NetworkSettings;
-use crate::torrent::BTorrent;
+use crate::{config::NetworkSettings, torrent::BTorrent};
 
 #[derive(PartialEq, Debug)]
 pub enum BAnnounceEvent {

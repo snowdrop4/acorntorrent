@@ -1,11 +1,6 @@
-use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
-use std::str;
+use std::{collections::BTreeMap, fs::File, io::Read, path::Path, str};
 
-use acornbencode::common::BencodeValue;
-use acornbencode::parser::parse_bencode;
+use acornbencode::{common::BencodeValue, parser::parse_bencode};
 use ring::digest;
 
 use crate::util::bencoding::{get_optional_utf8_value, get_utf8_value};
@@ -14,7 +9,7 @@ type DecodingError = String;
 type EncodingError = String;
 
 // Extract the raw bytes of the info dictionary from a torrent file.
-// This is used for calculating the infohash. If we hash the raw bytes,
+// This is used for calculating the info hash. If we hash the raw bytes,
 // then our hash reflects all additional/optional/unrecognised keys inside
 // the dictionary, that our parser would otherwise ignore.
 //
@@ -220,7 +215,7 @@ pub struct BInfo {
     //
     // This is used by private trackers to stop their peer lists being leaked
     // if the same torrent is uploaded to multiple trackers, since each tracker
-    // will force a different infohash by setting `source`, even if the rest of
+    // will force a different info hash by setting `source`, even if the rest of
     // the torrent is identical.
     pub source: Option<String>,
 

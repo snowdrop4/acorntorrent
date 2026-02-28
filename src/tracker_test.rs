@@ -1,17 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::PathBuf;
-    use wiremock::matchers::{method, path_regex};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use std::{fs, path::PathBuf};
 
     use reqwest::Client;
+    use wiremock::{
+        matchers::{method, path_regex},
+        Mock, MockServer, ResponseTemplate,
+    };
 
-    use crate::config;
-    use crate::metainfo;
-    use crate::torrent;
-    use crate::tracker;
-    use crate::tracker::BTrackerResponse;
+    use crate::{config, metainfo, torrent, tracker, tracker::BTrackerResponse};
 
     async fn setup_mock_tracker() -> MockServer {
         let mock_server = MockServer::start().await;

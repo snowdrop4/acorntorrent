@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Format
-        run: cargo fmt
+        run: cargo +nightly fmt
 
       - name: Lint
         run: cargo clippy

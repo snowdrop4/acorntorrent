@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 
-use acorntorrent::config::NetworkSettings;
-use acorntorrent::metainfo::BMetainfo;
-use acorntorrent::torrent::BTorrent;
-use acorntorrent::tracker::{announce_to_tracker, BAnnounceEvent, BTrackerResponse};
-use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+use acorntorrent::{
+    config::NetworkSettings,
+    metainfo::BMetainfo,
+    torrent::BTorrent,
+    tracker::{announce_to_tracker, BAnnounceEvent, BTrackerResponse},
+};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "acorntorrent")]

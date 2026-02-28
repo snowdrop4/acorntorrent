@@ -1,7 +1,6 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str};
 
 use acornbencode::common::BencodeValue;
-use std::str;
 
 type DecodingError = String;
 

@@ -1,12 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::{Path, PathBuf};
-    use std::process::Command;
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        process::Command,
+    };
 
-    use crate::metainfo::BMetainfo;
-    use crate::util::formatting::{
-        format_datetime_to_localtime, fuzzy_format_bytes_to_si, parse_size_to_bytes,
+    use crate::{
+        metainfo::BMetainfo,
+        util::formatting::{
+            format_datetime_to_localtime, fuzzy_format_bytes_to_si, parse_size_to_bytes,
+        },
     };
 
     #[derive(Debug)]
