@@ -23,6 +23,7 @@ def get_client_config(client_name) -> dict[str, Any]:
                     DOCKERFILE_DIR / "clients" / "dockerfile.transmission"
                 ),
             },
+            "init": True,
             "volumes": [
                 "./test-data/downloads-{client}:/data/downloads",
                 "./test-data/watch-{client}:/data/watch",
@@ -120,7 +121,10 @@ def generate_compose_file(tracker, client, scenario) -> dict[str, Any]:
 
     # Add test orchestrator service
     compose["services"]["test-orchestrator"] = {
-        "image": "python:3.11-alpine",
+        "build": {
+            "context": str(PROJECT_ROOT / "integration_tests"),
+            "dockerfile": str(PROJECT_ROOT / "integration_tests" / "dockerfile.test-orchestrator"),
+        },
         "volumes": [
             "../test-scripts:/test-scripts",
             "./test-data:/test-data",

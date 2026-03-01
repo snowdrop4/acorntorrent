@@ -1,0 +1,8 @@
+FROM python:3.14-alpine
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+COPY pyproject.toml /test-scripts/
+RUN cd /test-scripts && uv pip install --system --no-cache .
+
+WORKDIR /test-scripts

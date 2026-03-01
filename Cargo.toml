@@ -2,7 +2,7 @@
 name = "acorntorrent"
 version = "0.1.0"
 authors = ["snowdrop4"]
-edition = "2018"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,7 +13,7 @@ rand = "0.8"
 ring = "0.16"
 
 # Bencoding
-failure = "0.1" # for error handling
+failure = "0.1"
 acornbencode = { path = "acornbencode" }
 nom = "7.1"
 

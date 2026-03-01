@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------
 # Build Stage
 # ------------------------------------------------------------------------------
-FROM rust:1.83-alpine AS builder
+FROM rust:1.93-alpine AS builder
 
 RUN apk add --no-cache \
     musl-dev \
@@ -18,7 +18,7 @@ COPY Cargo.lock     Cargo.lock
 COPY acornbencode   acornbencode
 
 # Build the project
-RUN cargo build --release
+RUN cargo +nightly build --release
 
 # ------------------------------------------------------------------------------
 # Runtime Stage

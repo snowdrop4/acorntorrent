@@ -194,7 +194,7 @@ impl BPeer {
 fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
     let mut peers = Vec::new();
 
-    if bytes.len() % 6 != 0 {
+    if !bytes.len().is_multiple_of(6) {
         return Err(
             "Incomplete compact IPv4 peers list (length is not divisible by 6)".to_string(),
         );
@@ -221,7 +221,7 @@ fn parse_compact_ipv4_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
 fn parse_compact_ipv6_peer_list(bytes: &[u8]) -> Result<Vec<BPeer>, String> {
     let mut peers = Vec::new();
 
-    if bytes.len() % 18 != 0 {
+    if !bytes.len().is_multiple_of(18) {
         return Err(
             "Incomplete compact IPv6 peers list (length is not divisible by 18)".to_string(),
         );

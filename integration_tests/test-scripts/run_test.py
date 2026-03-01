@@ -69,7 +69,9 @@ def create_test_file(filepath: Path, size_mb: int = 10) -> str:
     return sha1.hexdigest()
 
 
-def create_torrent_file(source_file: Path, torrent_file: Path, tracker_url: str) -> bool:
+def create_torrent_file(
+    source_file: Path, torrent_file: Path, tracker_url: str
+) -> bool:
     print(f"{Fore.BLUE}Creating torrent file: {torrent_file}{Style.RESET_ALL}")
 
     # Use transmission-create if available, otherwise mktorrent
@@ -91,10 +93,14 @@ def create_torrent_file(source_file: Path, torrent_file: Path, tracker_url: str)
             print(f"{Fore.GREEN}Torrent file created successfully{Style.RESET_ALL}")
             return True
         else:
-            print(f"{Fore.RED}Failed to create torrent: {result.stderr}{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}Failed to create torrent: {result.stderr}{Style.RESET_ALL}"
+            )
             return False
     except FileNotFoundError:
-        print(f"{Fore.YELLOW}transmission-create not found, trying mktorrent{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}transmission-create not found, trying mktorrent{Style.RESET_ALL}"
+        )
         try:
             result = subprocess.run(
                 [
@@ -113,10 +119,14 @@ def create_torrent_file(source_file: Path, torrent_file: Path, tracker_url: str)
                 print(f"{Fore.GREEN}Torrent file created successfully{Style.RESET_ALL}")
                 return True
             else:
-                print(f"{Fore.RED}Failed to create torrent: {result.stderr}{Style.RESET_ALL}")
+                print(
+                    f"{Fore.RED}Failed to create torrent: {result.stderr}{Style.RESET_ALL}"
+                )
                 return False
         except FileNotFoundError:
-            print(f"{Fore.RED}Neither transmission-create nor mktorrent found{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}Neither transmission-create nor mktorrent found{Style.RESET_ALL}"
+            )
             return False
 
 
@@ -124,7 +134,7 @@ def test_download_scenario(tracker: str, client: str, tracker_url: str) -> bool:
     """
     Test scenario: Other client seeds, AcornTorrent downloads.
     """
-    print(f"{Fore.BLUE}\n=== DOWNLOAD SCENARIO ==={Style.RESET_ALL}")
+    print(f"\n{Fore.BLUE}=== DOWNLOAD SCENARIO ==={Style.RESET_ALL}")
     print(f"{Fore.BLUE}Tracker: {tracker}, Client: {client}{Style.RESET_ALL}")
 
     # Use pre-generated test data
@@ -134,12 +144,16 @@ def test_download_scenario(tracker: str, client: str, tracker_url: str) -> bool:
     # Verify test files exist
     if not test_file.exists():
         print(f"{Fore.RED}Test file not found: {test_file}{Style.RESET_ALL}")
-        print(f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}"
+        )
         return False
 
     if not torrent_file.exists():
         print(f"{Fore.RED}Torrent file not found: {torrent_file}{Style.RESET_ALL}")
-        print(f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}"
+        )
         return False
 
     print(f"{Fore.BLUE}Using test file: {test_file}{Style.RESET_ALL}")
@@ -165,7 +179,7 @@ def test_upload_scenario(tracker: str, client: str, tracker_url: str) -> bool:
     """
     Test scenario: AcornTorrent seeds, other client downloads.
     """
-    print(f"{Fore.BLUE}\n=== UPLOAD SCENARIO ==={Style.RESET_ALL}")
+    print(f"\n{Fore.BLUE}=== UPLOAD SCENARIO ==={Style.RESET_ALL}")
     print(f"{Fore.BLUE}Tracker: {tracker}, Client: {client}{Style.RESET_ALL}")
 
     # Use pre-generated test data
@@ -175,12 +189,16 @@ def test_upload_scenario(tracker: str, client: str, tracker_url: str) -> bool:
     # Verify test files exist
     if not test_file.exists():
         print(f"{Fore.RED}Test file not found: {test_file}{Style.RESET_ALL}")
-        print(f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}"
+        )
         return False
 
     if not torrent_file.exists():
         print(f"{Fore.RED}Torrent file not found: {torrent_file}{Style.RESET_ALL}")
-        print(f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}"
+        )
         return False
 
     print(f"{Fore.BLUE}Using test file: {test_file}{Style.RESET_ALL}")
@@ -206,7 +224,7 @@ def test_announce_scenario(tracker: str, client: str, tracker_url: str) -> bool:
     """
     Test scenario: Test tracker communication (announce/scrape).
     """
-    print(f"{Fore.BLUE}\n=== ANNOUNCE SCENARIO ==={Style.RESET_ALL}")
+    print(f"\n{Fore.BLUE}=== ANNOUNCE SCENARIO ==={Style.RESET_ALL}")
     print(f"{Fore.BLUE}Tracker: {tracker}, Client: {client}{Style.RESET_ALL}")
 
     # Use pre-generated test data
@@ -216,12 +234,16 @@ def test_announce_scenario(tracker: str, client: str, tracker_url: str) -> bool:
     # Verify test files exist
     if not test_file.exists():
         print(f"{Fore.RED}Test file not found: {test_file}{Style.RESET_ALL}")
-        print(f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}"
+        )
         return False
 
     if not torrent_file.exists():
         print(f"{Fore.RED}Torrent file not found: {torrent_file}{Style.RESET_ALL}")
-        print(f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Please run generate_test_data.py before running tests{Style.RESET_ALL}"
+        )
         return False
 
     print(f"{Fore.BLUE}Using test file: {test_file}{Style.RESET_ALL}")
@@ -260,7 +282,9 @@ def test_announce_scenario(tracker: str, client: str, tracker_url: str) -> bool:
         print(f"{Fore.GREEN}Announce test completed successfully!{Style.RESET_ALL}")
         return True
     else:
-        print(f"{Fore.RED}Announce failed with exit code {result.returncode}{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Announce failed with exit code {result.returncode}{Style.RESET_ALL}"
+        )
         return False
 
 
@@ -279,12 +303,12 @@ def main() -> None:
 
     tracker_url = os.environ.get("TRACKER_URL", f"http://{args.tracker}:6969/announce")
 
-    print(f"{Fore.BLUE}\n{'=' * 60}{Style.RESET_ALL}")
+    print(f"\n{Fore.BLUE}{'=' * 60}{Style.RESET_ALL}")
     print(f"{Fore.BLUE}Integration Test{Style.RESET_ALL}")
     print(f"{Fore.BLUE}Tracker: {args.tracker}{Style.RESET_ALL}")
     print(f"{Fore.BLUE}Client: {args.client}{Style.RESET_ALL}")
     print(f"{Fore.BLUE}Scenario: {args.scenario}{Style.RESET_ALL}")
-    print(f"{Fore.BLUE}{'=' * 60}\n{Style.RESET_ALL}")
+    print(f"{Fore.BLUE}{'=' * 60}{Style.RESET_ALL}\n")
 
     # Wait for tracker to be ready
     if not wait_for_tracker(tracker_url):
@@ -301,14 +325,14 @@ def main() -> None:
         success = test_announce_scenario(args.tracker, args.client, tracker_url)
 
     if success:
-        print(f"{Fore.GREEN}\n{'=' * 60}{Style.RESET_ALL}")
+        print(f"\n{Fore.GREEN}{'=' * 60}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}TEST PASSED{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}{'=' * 60}\n{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{'=' * 60}{Style.RESET_ALL}\n")
         sys.exit(0)
     else:
-        print(f"{Fore.RED}\n{'=' * 60}{Style.RESET_ALL}")
+        print(f"\n{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
         print(f"{Fore.RED}TEST FAILED{Style.RESET_ALL}")
-        print(f"{Fore.RED}{'=' * 60}\n{Style.RESET_ALL}")
+        print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}\n")
         sys.exit(1)
 
 

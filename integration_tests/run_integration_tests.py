@@ -12,7 +12,8 @@ def build_docker_images(compose_files: list[Path]) -> tuple[int, str, str]:
 
     result = subprocess.run(
         [
-            "docker-compose",
+            "docker",
+            "compose",
             "-f",
             str(compose_files[0]),
             "build",
@@ -73,7 +74,8 @@ def main() -> None:
 
         result = subprocess.run(
             [
-                "docker-compose",
+                "docker",
+                "compose",
                 "-f",
                 str(compose_file),
                 "up",
@@ -89,7 +91,17 @@ def main() -> None:
             failed += 1
 
         subprocess.run(
-            ["docker-compose", "-f", str(compose_file), "down", "-v"],
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(compose_file),
+                "down",
+                "-v",
+                "--timeout",
+                "0",
+                "--remove-orphans",
+            ],
         )
 
         total += 1

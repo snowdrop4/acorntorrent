@@ -25,7 +25,7 @@ impl BTorrent {
             percent_encoding::percent_encode(&info_hash, percent_encoding::NON_ALPHANUMERIC)
                 .to_string();
 
-        let peer_id = rand::thread_rng().gen::<[u8; 20]>().to_vec();
+        let peer_id = rand::thread_rng().r#gen::<[u8; 20]>().to_vec();
         let encoded_peer_id =
             percent_encoding::percent_encode(&peer_id, percent_encoding::NON_ALPHANUMERIC)
                 .to_string();
